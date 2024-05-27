@@ -15,8 +15,8 @@ mode: LISTEN
 time_limit: 10
 max_conns: 20
 
-# 1GB memory
-cgroup_mem_max: 1073741824
+# 500MB
+cgroup_mem_max: 536870912
 
 # No swap
 cgroup_mem_swap_max: 0
@@ -37,15 +37,17 @@ that the processes spawned by the jail ought to never exceed a total
 of 20 * 1GB = 20GB of memory. Our exploit is able to consume
 1TB of RAM in ~5 minutes with only 10 simultaneous connections.
 
+Tested on:
+- 5.15.0-89-generic
+- 6.2.0-1018-aws
 
 Running the poc
 ---
 
 To run the PoC, we assume a machine with at least
-64GB of RAM, but you can run with fewer threads (simultaneous connections)
-if you have a smaller machine (explained later). This was tested on a 1TB machine
-and 64GB machine.
-
+64GB of RAM, and you may need to reduce the number of allocations
+(`COUNT` in app.c) to run on machines with less RAM. The exploit was
+tested on a 1TB machine and 64GB machine.
 
 To run and build the vulnerable nsjail:
 
@@ -62,11 +64,6 @@ At this point nsjail is listening on port 1337. Now you can run the poc on the h
 
 ```
 python3 poc.py
-```
-
-The default number of threads is 10, but you can run fewer with
-```
-python3 poc.py --nthread 10
 ```
 
 Expected output:

@@ -11,7 +11,7 @@
 
 #define MB (1024 * 1024)
 #define SHMSIZE (100 * MB)
-#define COUNT 10
+#define COUNT 5
 
 int main() {
   fprintf(stderr, "start\n");
