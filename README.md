@@ -3,12 +3,12 @@ nsjail IPC shmem DoS bug
 
 This demonstrates how a process running in nsjail
 with *strict* cgroup-based memory limits can cause
-processes outside the jail to be OOMed. This exploit
+processes outside the jail to be killed by the OOM-killer. This exploit
 uses the SysV shared memory mechanism (shmget, shmat, etc.),
 which does not require any unusual mappings or
 options passed to nsjail.
 
-The details of our configuration are below:
+The important parts of our configuration are below (see jail.cfg):
 
 ```
 mode: LISTEN
@@ -34,7 +34,7 @@ vulnerable to the same attack.
 The attack also works fine if you only set `cgroup_mem_memsw_max` instead
 of the two options above. A reading of the above configuration suggests
 that the processes spawned by the jail ought to never exceed a total
-of 20 * 1GB = 20GB of memory. Our exploit is able to consume
+of 20 * 0.5GB = 10GB of memory. Our exploit is able to consume
 1TB of RAM in ~5 minutes with only 10 simultaneous connections.
 
 Tested on:
@@ -45,9 +45,9 @@ Running the poc
 ---
 
 To run the PoC, we assume a machine with at least
-64GB of RAM, and you may need to reduce the number of allocations
-(`COUNT` in app.c) to run on machines with less RAM. The exploit was
-tested on a 1TB machine and 64GB machine.
+32GB of RAM. You may need to reduce the number of allocations
+(`COUNT` in app.c) to run on machines with less RAM than this. The exploit was
+tested on a 1TB machine and 32GB machine.
 
 To run and build the vulnerable nsjail:
 
@@ -77,6 +77,11 @@ as the RAM usage increases without bound. The PoC demonstrates
 that a process running on the host (running `victim_thread`)
 is killed by the OOM-killer (verify with `sudo dmesg | grep Killed`)
 as a result of processes running in nsjail.
+
+The victim will get killed much quicker on a machine with less ram.
+
+32 GB RAM: ~5 seconds
+1 TB RAM: ~3-5 minutes
 
 Explanation
 ----
