@@ -2,7 +2,7 @@ nsjail DoS using shared memory
 ====
 
 Disclaimer: This was reported using the process in the project's [security.md](https://github.com/google/.github/blob/master/SECURITY.md), but was found to be
-"not severe enough for us to track it as a security bug". Therefore, I am filing it as a functional bug (`s/PoC/reproducer/g`).
+"not severe enough for us to track it as a security bug". Therefore, I am filing it as a functional bug (`s/PoC/reproducer/g`). https://github.com/google/nsjail/issues/231
 
 This demonstrates how a process running in nsjail
 with strict cgroup-based memory limits can cause
