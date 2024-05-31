@@ -1,12 +1,17 @@
-nsjail IPC shmem DoS bug
+nsjail DoS using shared memory
 ====
 
+Disclaimer: This was reported using the process in the project's [security.md](https://github.com/google/.github/blob/master/SECURITY.md), but was found to be
+"not severe enough for us to track it as a security bug". Therefore, I am filing it as a functional bug (`s/PoC/reproducer/g`).
+
 This demonstrates how a process running in nsjail
-with *strict* cgroup-based memory limits can cause
-processes outside the jail to be killed by the OOM-killer. This exploit
-uses the SysV shared memory mechanism (shmget, shmat, etc.),
+with strict cgroup-based memory limits can cause
+processes outside the jail to be killed by the OOM-killer. This
+uses the Sys-V shared memory mechanism (shmget, shmat, etc.),
 which does not require any unusual mappings or
 options passed to nsjail.
+
+The vulnerability is triggered by setting up and using a large amount of shared memory (up to the maximum allowed by cgroup_mem_max) in a number of short-running processes. This type of shared memory will not be immediately cleaned up by the kernel upon the exit of the jailed process (this is by design in Linux -- more detail at the end of this writeup), and will remain resident in RAM and unclaimable by other processes. This type of shared memory will eventually be cleaned up by the kernel in the background after the IPC namespace is destroyed, allowing it to be reclaimed by other processes. However, this may take many seconds to occur, especially if there are a large number of shared memory regions. The shared memory regions can be immediately reclaimed by other processes if deliberately destroyed by the user i.e. with `ipcrm -a`.
 
 The important parts of our configuration are below (see jail.cfg):
 
@@ -28,23 +33,23 @@ cgroup_cpu_ms_per_sec: 1000
 Our PoC uses LISTEN mode, but this is not strictly required---
 any setup where ***namespaces are created for every execution***
 is vulnerable: for example, downstream applications which wrap nsjail in ONCE
-mode but allow multiple executions (e.g. compiler explorer) are likely
+mode but allow multiple executions (e.g. compiler explorer, Google's [kctf](https://github.com/google/kctf/blob/v1/dist/challenge-templates/pwn/challenge/nsjail.cfg)) are likely
 vulnerable to the same attack.
 
 The attack also works fine if you only set `cgroup_mem_memsw_max` instead
 of the two options above. A reading of the above configuration suggests
 that the processes spawned by the jail ought to never exceed a total
-of 20 * 0.5GB = 10GB of memory. Our exploit is able to consume
+of 20 * 0.5GB = 10GB of memory. Our reproducer is able to consume
 1TB of RAM in ~5 minutes with only 10 simultaneous connections.
 
 Tested on:
 - 5.15.0-89-generic
 - 6.2.0-1018-aws
 
-Running the poc
+Running the reproducer
 ---
 
-To run the PoC, we assume a machine with at least
+To run the reproducer, we assume a machine with at least
 32GB of RAM. You may need to reduce the number of allocations
 (`COUNT` in app.c) to run on machines with less RAM than this. The exploit was
 tested on a 1TB machine and 32GB machine.
@@ -61,6 +66,8 @@ docker run -it --cgroupns=host --privileged --rm -p 1337:1337 nsjaildos
 ```
 
 At this point nsjail is listening on port 1337. Now you can run the poc on the host:
+
+WARNING: If you have a large amount of swap, this will quickly make your computer very slow or unstable.
 
 ```
 python3 poc.py
@@ -80,8 +87,8 @@ as a result of processes running in nsjail.
 
 The victim will get killed much quicker on a machine with less ram.
 
-32 GB RAM: ~5 seconds
-1 TB RAM: ~3-5 minutes
+- 32 GB RAM: ~5 seconds
+- 1 TB RAM: ~3-5 minutes
 
 Explanation
 ----
@@ -108,3 +115,8 @@ is for nsjail to spawn another process, have it `setns` into the IPC namespace o
 before the child execve's, and then once the child exits, it can cleanup IPC resources
 (e.g. as in [ipcrm](https://github.com/util-linux/util-linux/blob/55ca447a6a95226fd031a126fb48b01b3efd6284/sys-utils/ipcrm.c#L74)).
 
+### Attack scenario
+
+This vulnerability enables a low-complexity denial-of-service attack by a user with sandboxed code execution. nsjail is a component that was deliberately designed to prevent such attacks.
+
+nsjail is often used to run untrusted user code for multiple users on the same machine (for example, in [compiler explorer](https://godbolt.org)) (where anyone can submit code). nsjail is also used by google's [kctf](https://github.com/google/kctf) project, where untrusted, anonymous users have sandboxed code execution.
